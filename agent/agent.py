@@ -7,7 +7,6 @@ qing wen agent
 3、parse function
 """
 import json
-
 from plug_tool import Tools
 import requests
 
@@ -20,7 +19,7 @@ class QwAgent(Tools):
             'name_for_model': 'plug_add',
             'description_for_model': '插件启动是一个功能扩展服务，输入要开启的插件名称，开启该插件功能用于用户后续使用',
             'parameters': [{
-                'name': 'fuction_name',
+                'name': 'function_name',
                 'description': '函数名称，描述了希望添加哪个函数到可用工具中',
                 'required': True,
                 'schema': {
@@ -78,7 +77,7 @@ class QwAgent(Tools):
                 'required': True,
                 'schema': {
                     'type': 'str'
-                }},{
+                }}, {
                 'name': 'intent',
                 'description': '英文 需要实现的功能翻译为英文作为参数',
                 'required': True,
@@ -139,7 +138,7 @@ class QwAgent(Tools):
             "input": f"# language: {language}\n# {intent}",
             "mode": "chat"
         }
-        res = requests.post("http://192.168.186.18:3336/codegeex_test/predict",
+        res = requests.post("http://127.0.0.1:3336/codegeex_test/predict",
                             data=json.dumps(data, ensure_ascii=False))
         if res.status_code == 200:
             return json.loads(res.text)
@@ -148,6 +147,18 @@ class QwAgent(Tools):
 
     def _plug_add(self, **kwargs):
         function_name = kwargs.get("function_name")
+
+        sure_prompt = self._get_all_plug(function_name)
+        response = requests.post("http://127.0.0.1:8084/llm_test/predict", data=json.dumps({"prompt": sure_prompt}))
+        if response.status_code == 200:
+            print("_plug_add resutl>>", response.text)
+            response = json.loads(response.text)['result']
+            print("_plug_add response->\n\n", response)
+            start_index = response.index("{")
+            end_index = response.index("}")
+            response = response[start_index:end_index + 1]
+            function_name = eval(response)["function_name"]
+
         print("要添加的插件函数为->", function_name)
         if function_name in self.tool_map:
             tool_des = self.tool_map["{}-des".format(function_name)]
@@ -157,6 +168,20 @@ class QwAgent(Tools):
             return "添加成功"
         else:
             return "抱歉，当前插件功能暂未实现，请稍后再试！"
+
+    def _get_all_plug(self, input_function_name):
+        candidate_tools = []
+        for plug in self.tool_map:
+            if "des" not in plug and plug not in self.tools and plug != "plug_add":
+                tool_des = self.tool_map["{}-des".format(plug)]
+                candidate_tools.append([tool_des['name_for_model'], tool_des['description_for_model']])
+        prompt = "请从下面的函数中选出和给定函数相同的函数名称。有如下函数可供选择：\n"
+        for index, ct in enumerate(candidate_tools):
+            function_name = ct[0]
+            function_describe = ct[1]
+            prompt += "{}、函数名称：{}；函数描述：{}\n".format(index + 1, function_name, function_describe)
+        prompt += "给定函数名为：{}。".format(input_function_name) + "结果格式为{'function_name':'xxx'}"
+        return prompt
 
 
 if __name__ == "__main__":

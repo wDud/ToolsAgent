@@ -8,7 +8,7 @@ from agent import QwAgent
 
 
 class RestApi():
-    def __init__(self, agent, llm_url="http://192.168.186.18:3335/llm_test/predict"):
+    def __init__(self, agent, llm_url="http://127.0.0.1:8084/llm_test/predict"):
         self.agent = agent
         self.critic_agent = QwAgent()
         self.critic_prompt = """user:{user_input}\n\nagent:{agent_response}\n\nNow you're the agent's supervisor and please judge whether the answer given by agent to user is reasonable or correct. Use the following format:Result: the resutl to chose, should be one of ['right', 'error']\nReason: the result reason"""
@@ -107,9 +107,10 @@ class RestApi():
         return self.chat(prompt)
 
     def chat(self, prompt):
-        data = {"input": prompt}
+        data = {"prompt": prompt}
         response = requests.post(self.llm_url, data=json.dumps(data))
         if response.status_code == 200:
+            print("resutl>>", response.text)
             response = json.loads(response.text)['result']
             print("response->\n\n", response)
             return response
